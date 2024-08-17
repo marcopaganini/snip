@@ -1,0 +1,355 @@
+#!/bin/bash
+# NAME
+#     snip - CLI to manage shell code snippets.
+#
+# SYNOPSIS
+#     snip [command] [options]
+#
+# DESCRIPTION
+#     The snip utility allows users to easily manage bash code snippets.
+#     Users can save and execute commands directly from the bash command line,
+#     with the provided keybindings. It's also possible to perform operations
+#     on the snippet database directly on the command-line.
+#
+# OPTIONS
+#     The first argument is always a command. Commands may or may not have
+#     options (see below for a summary).
+#
+#     add [-f, --file FILENAME] [-D, --delete] [command]
+#         The add command adds a new entry to the snip database. Command must
+#         be properly quoted and will be added "as-is". The program will ask
+#         for a description from the keyboard.
+#
+#         If used with the `--file` option, snip will read the command to be
+#         saved from a filename. Using `--delete` with the `--file` option
+#         causes the file to be deleted after its contents are added to the
+#         database. This is useful when adding content from temporary files.
+#
+#     edit
+#         Invoke the text editor on the database file. The database is a simple
+#         text file using '|' (pipe) as a delimiter. Every line needs to have
+#         three exact fields: timestamp, description, and command. It is
+#         acceptable for the command to contain pipe characters, but not for
+#         the timestamp or description fields.
+#
+#     find [-q, --query STRING]
+#         The find command invokes fzf on the database and prints the
+#         command-line for the snippet chosen by the user. The `--query` flag
+#         sets the initial query for fzf, if present.
+#
+#     help
+#         This helpful message. :)
+#
+#     list
+#         The list command issues a formatted listing of the snippet database,
+#         including the snippet creation timestamps.
+#
+#     setup
+#         This command issues the required commands to setup the bash
+#         command-line bindings to easily add snippets and re-run saved
+#         snippets. To install snip, run this from your `~/.bashrc` file:
+#
+#         eval "$(/path/to/snip setup)"
+#
+#         This will create a few functions in your bash namespace and two
+#         bindings. By default they are:
+#
+#         Ctrl-X Ctrl-N
+#             Add the current line as a new snippet. The program will replace
+#             the text in the command-line with the appropriate `snip add`
+#             command.  All the user needs to do is press the ENTER key to
+#             confirm the action and enter a description.
+#
+#         Ctrl-X Ctrl-R
+#             Find and run a saved snippet. This will open an fzf window and
+#             allow the user to choose a snippet to run. Once selected, snip
+#             will replace the current bash input buffer with the command to
+#             run.
+#
+# SETUP
+#     Just add `eval "$(/path/to/snip setup)"` to your `~/.bashrc`. Depending on your
+#     setup, you may need to add it to `~/.profile` as well).
+#
+# REQUIREMENTS
+#     This program requires FZF to run (https://github.com/junegunn/fzf). Please note that
+#     fzf is very popular and available natively in most Linux distributions.
+#
+# AUTHOR
+#     Aug/2024 by Marco Paganini <paganini [at] paganini [dot] net>
+#
+
+set -o nounset
+
+readonly ARGV0="$0"
+readonly PROGRAM="${0##*/}"
+readonly DB_FILE="${HOME}/.config/snip/db.${HOSTNAME?}"
+readonly TABLE_HEADERS="TIMESTAMP|DESCRIPTION|COMMAND"
+readonly SNIP_BIND_ADD='"\C-x\C-n"'
+readonly SNIP_BIND_FIND='"\C-x\C-f"'
+
+readonly COLUMN_CMD=(
+  "column" "--table"
+  "--table-columns-limit=3"
+  "--separator=|"
+  "--output-separator=|")
+
+readonly FZF_CMD=(
+  "fzf" "--no-multi" "--ansi" "--header-lines=1"
+  "--preview" "cut -d'|' -f3 <<< {} | fold -sw \"\${FZF_PREVIEW_COLUMNS}\""
+)
+
+# usage - print the program usage from top of file comments and exit with an error
+# code. The first line containing the hashbang is skipped. The rest is printed
+# as the usage. Printing will stop at the end of the first block of comments.
+function usage() {
+  local line
+  local first=1
+  while read -r line; do
+    if (( first )); then
+      first=0
+      continue
+    fi
+    if [[ ! "${line}" =~ ^# ]]; then
+      break
+    fi
+    # Skip '# ' at the beginning of each line.
+    cut -c3- <<<"${line}"
+  done <"${ARGV0}"
+  exit 1
+}
+function die() {
+  echo -e "$1" >&2
+  exit 1
+}
+
+# format_db - Align the database in a tabular format for easy reading.
+function format_db() {
+  "${COLUMN_CMD[@]}"
+}
+
+# save(desc, cmd) - Save a single entry to the database file.
+function save() {
+  local desc="${1?}"
+  local cmd="${2?}"
+
+  echo "$(date '+%Y-%m-%d %H:%M:%S')|${desc}|${cmd}" >>"${DB_FILE}"
+}
+
+# add - Add a command to the database.
+#
+# Parameters:
+#   -f, --file FNAME
+#       Read the command from the named file. This overrides reading the command
+#       from the first argument (below).
+#
+#   --delete
+#       If using "--file", also delete the file after processing.
+#
+#   COMMAND
+#       Read the command from the first argument.
+#
+function add() {
+  # Check Parameters
+  TEMP=$(getopt -o Df: --long file,delete -n "${PROGRAM}" -- "$@")
+  # shellcheck disable=SC2181
+  if [ $? != 0 ]; then
+    echo "Error processing add command. Use ${PROGRAM} help for details..." >&2
+    exit 2
+  fi
+
+  local cmd cmd_from_file infile delete_file
+
+  eval set -- "${TEMP}"
+  while :; do
+    case "$1" in
+    -D | --delete)
+      delete_file=1
+      shift
+      ;;
+    -f | --file)
+      infile="$2"
+      cmd_from_file="$(cat "${infile}")"
+      if [[ -z "${cmd_from_file}" ]]; then
+        echo >&2 "${PROGRAM} Called add with --file, but the file \"${infile}\" appears to be empty."
+        return
+      fi
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      echo "Internal Error."
+      exit 2
+      ;;
+    esac
+  done
+
+  # If cmd_from_file is set, it means we've read it from a file. Otherwise, use
+  # first parameter passed as the command.
+  if [[ -n "${cmd_from_file}" ]]; then
+    cmd="${cmd_from_file}"
+    echo "Command: ${cmd}"
+  else
+    read -re -p "Command: " cmd
+  fi
+
+  read -re -p "Description: " desc
+  if [[ -z "${desc}" ]]; then
+    if ((delete_file)) && [[ -n "${infile}" ]]; then
+      rm -f "${infile}"
+    fi
+    die "${PROGRAM}: Description cannot be null. Command was NOT saved."
+  fi
+  # Save and delete infile if needed.
+  save "${desc}" "${cmd}"
+  if ((delete_file)) && [[ -n "${infile}" ]]; then
+    rm -f "${infile}"
+  fi
+}
+
+# shellcheck disable=SC2120
+function edit() {
+  # Check parameters.
+  if [[ "$#" -ne 0 ]]; then
+    die "Use: ${PROGRAM} edit"
+  fi
+
+  # Edit the database file using your favorite editor.
+  local editor="${VISUAL:-nano}"
+  "${editor}" "${DB_FILE}"
+}
+
+# shellcheck disable=SC2120
+# find - Calls fzf on the database and returns the command chosen by the user
+# Also accepts "[-q|--query] string" to start search at a given string.
+function find() {
+  # Check Parameters
+  TEMP=$(getopt -o q: --long query: -n "${PROGRAM}" -- "$@")
+  # shellcheck disable=SC2181
+  if [ $? != 0 ]; then
+    echo "Error processing find command. Use ${PROGRAM} help for details..." >&2
+    exit 2
+  fi
+
+  local query=""
+
+  eval set -- "${TEMP}"
+  while :; do
+    case "$1" in
+    -q | --query)
+      query="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      echo "Internal Error."
+      exit 2
+      ;;
+    esac
+  done
+
+  if [[ "$#" -ne 0 ]]; then
+    die "Use: ${PROGRAM} find"
+  fi
+
+  local fzfcmd=("${FZF_CMD[@]}")
+  if [[ -n "${query}" ]]; then
+    fzfcmd+=("-q" "${query}")
+  fi
+  (
+    echo "${TABLE_HEADERS}"
+    cat <"${DB_FILE}"
+  ) | format_db | "${fzfcmd[@]}" | cut -d'|' -f3-
+}
+
+# snip_bind_add - Bindings to add the current command-line to the database.
+function snip_bind_add() {
+  if [[ -n "${READLINE_LINE}" ]]; then
+    tmp="$(mktemp)"
+    echo "${READLINE_LINE}" >"${tmp}"
+    # One space before the program prevents it from being added to the history.
+    READLINE_LINE="${SNIP_PROGRAM:-snip} add -f ${tmp} --delete"
+    READLINE_POINT="${#READLINE_LINE}"
+  fi
+}
+
+# snip_bind_find - Bindings to find a snippet and paste it in the current bash
+# command line.
+function snip_bind_find() {
+  local cmd
+  cmd="$("${SNIP_PROGRAM:-snip}" find)"
+  if [[ -n "${cmd}" ]]; then
+    READLINE_LINE="${cmd}"
+    READLINE_POINT="${#READLINE_LINE}"
+    READLINE_MARK="${READLINE_POINT}"
+  fi
+}
+
+# list - List all entries in the database.
+function list() {
+  (
+    echo "${TABLE_HEADERS}"
+    cat <"${DB_FILE}"
+  ) | format_db
+}
+
+# setup - Outputs code to be evaled from ~/.bashrc. This will install bash
+# binds to call snip add and snip find.
+function setup() {
+  type snip_bind_add | sed 1d
+  type snip_bind_find | sed 1d
+  echo "export -f snip_bind_add"
+  echo "export -f snip_bind_find"
+  echo "export SNIP_PROGRAM='${PROGRAM:-snip}'"
+  echo "bind -x '${SNIP_BIND_ADD}: snip_bind_add'"
+  echo "bind -x '${SNIP_BIND_FIND}: snip_bind_find'"
+}
+
+function main() {
+  if [[ "$#" -lt 1 ]]; then
+    die "Use: ${PROGRAM} <command> [arguments].\nFor further information, use \"snip help\""
+  fi
+
+  # Create database directory if needed.
+  local db_dir="${DB_FILE%/*}"
+  mkdir -p "${db_dir}"
+
+  local cmd="$1"
+
+  case "${cmd}" in
+  "add")
+    shift
+    add "${@}"
+    ;;
+  "edit")
+    shift
+    edit
+    ;;
+  "help")
+    shift
+    usage
+    ;;
+  "find")
+    shift
+    find "${@}"
+    ;;
+  "list")
+    shift
+    list
+    ;;
+  "setup")
+    shift
+    setup
+    ;;
+  *)
+    die "${PROGRAM}: Unknown command: \"${cmd}\"\nRun \"snip help\" to see the list of commands"
+    ;;
+  esac
+}
+
+main "${@}"
