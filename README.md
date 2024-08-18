@@ -9,6 +9,8 @@ to forget. `snip` is written in pure bash, but uses
 [fzf](https://github.com/junegunn/fzf) to allow the user to perform searches on
 the snippet database.
 
+![Screen Cast](https://raw.githubusercontent.com/marcopaganini/snip/master/assets/snip.gif)
+
 ## Motivation
 
 Shell scripting is a powerful tool in the right hands. The piping capabilities
