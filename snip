@@ -301,9 +301,10 @@ function find() {
 function snip_bind_add() {
   if [[ -n "${READLINE_LINE}" ]]; then
     tmp="$(mktemp)"
+    old_readline_line="${READLINE_LINE}"
     echo "${READLINE_LINE}" >"${tmp}"
     # One space before the program prevents it from being added to the history.
-    READLINE_LINE="${SNIP_PROGRAM:-snip} add -f ${tmp} --delete"
+    READLINE_LINE=" ${SNIP_PROGRAM:-snip} add -f ${tmp} --delete ### Command: ${old_readline_line}"
     READLINE_POINT="${#READLINE_LINE}"
   fi
 }
