@@ -217,7 +217,10 @@ function add() {
     cmd="${cmd_from_file}"
     echo "Command: ${cmd}"
   else
-    read -re -p "Command: " cmd
+    if [[ "$#" -ne 1 ]]; then
+      die "${PROGRAM}: \"add\" command needs an argument with the command to add."
+    fi
+    cmd="$1"
   fi
 
   read -re -p "Description: " desc
