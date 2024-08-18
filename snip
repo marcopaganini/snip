@@ -70,6 +70,19 @@
 #     Just add `eval "$(/path/to/snip setup)"` to your `~/.bashrc`. Depending on your
 #     setup, you may need to add it to `~/.profile` as well).
 #
+# CONFIGURATION FILE
+#     Currently, only the keybindings to add snippets and run commands in
+#     snippets can be overriden. To do that, edit
+#     `~/.config/snip/config` and add the following:
+#
+#     SNIP_BIND_ADD='"\C-x\C-n"'
+#     SNIP_BIND_FIND='"\C-x\C-r"'
+#
+#     The lines above show the default keybindings to add and run commands.
+#     Please keep in mind that this file is sourced directly by the main
+#     program, so it should be a valid bash file. Look for the the key syntax
+#     for "bind -x" in the bash manpage for details.
+#
 # REQUIREMENTS
 #     This program requires FZF to run (https://github.com/junegunn/fzf). Please note that
 #     fzf is very popular and available natively in most Linux distributions.
@@ -83,9 +96,8 @@ set -o nounset
 readonly ARGV0="$0"
 readonly PROGRAM="${0##*/}"
 readonly DB_FILE="${HOME}/.config/snip/db.${HOSTNAME?}"
+readonly CONFIG_FILE="${DB_FILE%/*}.config"
 readonly TABLE_HEADERS="TIMESTAMP|DESCRIPTION|COMMAND"
-readonly SNIP_BIND_ADD='"\C-x\C-n"'
-readonly SNIP_BIND_FIND='"\C-x\C-r"'
 
 readonly COLUMN_CMD=(
   "column" "--table"
@@ -97,6 +109,13 @@ readonly FZF_CMD=(
   "fzf" "--no-multi" "--ansi" "--header-lines=1"
   "--preview" "cut -d'|' -f3 <<< {} | fold -sw \"\${FZF_PREVIEW_COLUMNS}\""
 )
+
+# Overridable settings
+SNIP_BIND_ADD='"\C-x\C-n"'
+SNIP_BIND_FIND='"\C-x\C-r"'
+
+# shellcheck disable=SC1090
+[[ -s "${CONFIG_FILE}" ]] && source "${CONFIG_FILE}"
 
 # usage - print the program usage from top of file comments and exit with an error
 # code. The first line containing the hashbang is skipped. The rest is printed
@@ -117,6 +136,7 @@ function usage() {
   done <"${ARGV0}"
   exit 1
 }
+
 function die() {
   echo -e "$1" >&2
   exit 1
@@ -125,6 +145,13 @@ function die() {
 # format_db - Align the database in a tabular format for easy reading.
 function format_db() {
   "${COLUMN_CMD[@]}"
+}
+
+# check_empty_db - Check if the database is empty and dies with an
+# error message.
+function check_empty_db() {
+  [[ -s "${DB_FILE}" ]] ||
+    die "${PROGRAM}: Database file is empty. Try add something with \"snip add\""
 }
 
 # save(desc, cmd) - Save a single entry to the database file.
@@ -222,9 +249,11 @@ function edit() {
 }
 
 # shellcheck disable=SC2120
-# find - Calls fzf on the database and returns the command chosen by the user
+# find - Call fzf on the database and returns the command chosen by the user
 # Also accepts "[-q|--query] string" to start search at a given string.
 function find() {
+  check_empty_db
+
   # Check Parameters
   TEMP=$(getopt -o q: --long query: -n "${PROGRAM}" -- "$@")
   # shellcheck disable=SC2181
@@ -292,13 +321,15 @@ function snip_bind_find() {
 
 # list - List all entries in the database.
 function list() {
+  check_empty_db
+
   (
     echo "${TABLE_HEADERS}"
     cat <"${DB_FILE}"
   ) | format_db
 }
 
-# setup - Outputs code to be evaled from ~/.bashrc. This will install bash
+# setup - Output code to be evaled from ~/.bashrc. This will install bash
 # binds to call snip add and snip find.
 function setup() {
   type snip_bind_add | sed 1d
