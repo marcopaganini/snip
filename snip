@@ -65,6 +65,8 @@
 #             allow the user to choose a snippet to run. Once selected, snip
 #             will replace the current bash input buffer with the command to
 #             run.
+#     version
+#         Show the program version.
 #
 # SETUP
 #     Just add `eval "$(/path/to/snip setup)"` to your `~/.bashrc`. Depending on your
@@ -91,6 +93,7 @@
 #     (C) Aug/2024 by Marco Paganini <paganini [at] paganini [dot] net>
 #
 
+readonly VERSION="0.01"
 readonly ARGV0="$0"
 readonly PROGRAM="${0##*/}"
 readonly DB_FILE="${HOME}/.config/snip/db.${HOSTNAME?}"
@@ -378,6 +381,11 @@ function main() {
   "setup")
     shift
     setup
+    ;;
+  "version")
+    shift
+    echo "v${VERSION}"
+    exit 0
     ;;
   *)
     die "${PROGRAM}: Unknown command: \"${cmd}\"\nRun \"snip help\" to see the list of commands"
