@@ -144,7 +144,7 @@ export BATCAT_THEME="ansi"
 # Use batcat if present.
 for sf in "bat" "batcat"; do
   if type -p "${sf}" >&/dev/null; then
-    SNIPPET_FORMATTER="${sf} --theme=\"\${BATCAT_THEME}\" --color=always --language=bash --terminal-width=\"\${FZF_PREVIEW_COLUMNS}\""
+    SNIPPET_FORMATTER="${sf} --theme=\"${BATCAT_THEME}\" --wrap=character --color=always --language=bash"
     break
   fi
 done
