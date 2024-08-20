@@ -105,6 +105,8 @@
 #     (C) Aug/2024 by Marco Paganini <paganini [at] paganini [dot] net>
 #
 
+set -o nounset
+
 # Program version
 readonly VERSION="0.01"
 
@@ -230,7 +232,10 @@ function add() {
     exit 2
   fi
 
-  local cmd cmd_from_file infile delete_file
+  local cmd=""
+  local cmd_from_file=""
+  local infile=""
+  local delete_file=0
 
   eval set -- "${TEMP}"
   while :; do
@@ -271,15 +276,20 @@ function add() {
     cmd="$1"
   fi
 
+  # Make sure the command does not contain newlines
+  if [[ "${cmd}" =~ $'\n' ]]; then
+    die "${PROGRAM} ERROR: command cannot contain newlines\nCommand entered:\n${cmd}"
+  fi
+
   # Read description rejecting invalid chars and blank lines.
   while :; do
     read -re -p "Description (one line): " desc
-    if [[ "${desc}" =~ [|] ]]; then
-      echo "Error: Description cannot contain pipe (\"|\") characters. Please try again."
+    if [[ "${desc}" =~ [$'\r'$'\n'\|] ]]; then
+      echo "ERROR: Description cannot contain pipe (\"|\") characters or newlines. Please try again."
       continue
     fi
     if [[ -z "${desc}" ]]; then
-      echo "Error: Description cannot be empty. Please try again."
+      echo "ERROR: Description cannot be empty. Please try again."
       continue
     fi
     break
