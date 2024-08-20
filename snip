@@ -271,13 +271,20 @@ function add() {
     cmd="$1"
   fi
 
-  read -re -p "Description: " desc
-  if [[ -z "${desc}" ]]; then
-    if ((delete_file)) && [[ -n "${infile}" ]]; then
-      rm -f "${infile}"
+  # Read description rejecting invalid chars and blank lines.
+  while :; do
+    read -re -p "Description (one line): " desc
+    if [[ "${desc}" =~ [|] ]]; then
+      echo "Error: Description cannot contain pipe (\"|\") characters. Please try again."
+      continue
     fi
-    die "${PROGRAM}: Description cannot be null. Command was NOT saved."
-  fi
+    if [[ -z "${desc}" ]]; then
+      echo "Error: Description cannot be empty. Please try again."
+      continue
+    fi
+    break
+  done
+
   # Save and delete infile if needed.
   save "${desc}" "${cmd}"
   if ((delete_file)) && [[ -n "${infile}" ]]; then
