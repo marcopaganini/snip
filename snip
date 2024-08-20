@@ -136,8 +136,10 @@ readonly COLUMN_FIND_CMD=(
 # Overridable settings
 export SNIP_BIND_ADD='"\C-x\C-n"'
 export SNIP_BIND_FIND='"\C-x\C-r"'
-export SNIPPET_FORMATTER="fold -sw \"\${FZF_PREVIEW_COLUMNS}\""
 export BATCAT_THEME="ansi"
+
+# shellcheck disable=SC2016
+export SNIPPET_FORMATTER=('fold' '-sw' '${FZF_PREVIEW_COLUMNS}')
 
 # shellcheck disable=SC1090
 [[ -s "${CONFIG_FILE}" ]] && source "${CONFIG_FILE}"
@@ -145,7 +147,15 @@ export BATCAT_THEME="ansi"
 # Use batcat if present.
 for sf in "bat" "batcat"; do
   if type -p "${sf}" >&/dev/null; then
-    SNIPPET_FORMATTER="${sf} --theme=\"${BATCAT_THEME}\" --wrap=character --color=always --language=bash"
+    # shellcheck disable=SC2016
+    SNIPPET_FORMATTER=(
+      "${sf}"
+      "--theme=\"${BATCAT_THEME}\""
+      "--wrap=character"
+      '--terminal-width="${FZF_PREVIEW_COLUMNS}"'
+      "--color=always"
+      "--language=bash"
+    )
     break
   fi
 done
@@ -153,7 +163,7 @@ done
 readonly FZF_CMD=(
   "fzf" "--no-multi" "--ansi" "--header-lines=1"
   "--preview"
-  "cut -d'|' -f3 <<< {} | ${SNIPPET_FORMATTER}"
+  "cut -d'|' -f3 <<< {} | ${SNIPPET_FORMATTER[*]}"
 )
 
 # End of default variables
