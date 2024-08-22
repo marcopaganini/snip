@@ -93,7 +93,7 @@
 #     # window. You can override the theme using the setting below.To see all
 #     # available themes, run `cat --list-themes` (or `batcat --list-themes`
 #     # in some distributions.)
-#     BATCAT_THEME="gruvbox-dark"
+#     BAT_THEME="gruvbox-dark"
 #
 #     The lines above show the default keybindings to add and run commands.
 #     Please keep in mind that this file is sourced directly by the main
@@ -383,7 +383,7 @@ function create_default_config() {
     # Overridable settings
     export SNIP_BIND_ADD='"\C-x\C-n"'
     export SNIP_BIND_FIND='"\C-x\C-r"'
-    export BATCAT_THEME="ansi"
+    export BAT_THEME="ansi"
 END
 }
 
@@ -405,7 +405,7 @@ function get_snippet_formatter() {
       # shellcheck disable=SC2034
       ret=(
         "${sf}"
-        "--theme=\"${BATCAT_THEME}\""
+        "--theme=\"${BAT_THEME}\""
         "--wrap=character"
         "--terminal-width=\"\${FZF_PREVIEW_COLUMNS}\""
         "--color=always"

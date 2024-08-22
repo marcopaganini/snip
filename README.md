@@ -209,7 +209,7 @@ CONFIGURATION FILE
     # window. You can override the theme using the setting below.To see all
     # available themes, run `cat --list-themes` (or `batcat --list-themes`
     # in some distributions.)
-    BATCAT_THEME="gruvbox-dark"
+    BAT_THEME="gruvbox-dark"
 
     The lines above show the default keybindings to add and run commands.
     Please keep in mind that this file is sourced directly by the main
