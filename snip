@@ -73,6 +73,9 @@
 #     setup, you may need to add it to `~/.profile` as well).
 #
 # CONFIGURATION FILE
+#     On the first run, snip will create a configuration file with default
+#     values.
+#
 #     Currently, it is possible to override a few items in the config file.
 #     To do that, edit `~/.config/snip/config` and/edit add the following:
 #
@@ -114,7 +117,7 @@ readonly VERSION="0.01"
 readonly ARGV0="$0"
 readonly PROGRAM="${0##*/}"
 readonly DB_FILE="${HOME}/.config/snip/db.${HOSTNAME?}"
-readonly CONFIG_FILE="${DB_FILE%/*}.config"
+readonly CONFIG_FILE="${DB_FILE%/*}/config"
 
 # Base column command. Behavior of the last column depends on the command
 # (list/find).
@@ -134,39 +137,6 @@ readonly COLUMN_LIST_CMD=(
 readonly COLUMN_FIND_CMD=(
   "${COLUMN_BASE_CMD[@]}"
   "--table-column=name=COMMAND")
-
-# Overridable settings
-export SNIP_BIND_ADD='"\C-x\C-n"'
-export SNIP_BIND_FIND='"\C-x\C-r"'
-export BATCAT_THEME="ansi"
-
-# shellcheck disable=SC2016
-export SNIPPET_FORMATTER=('fold' '-sw' '${FZF_PREVIEW_COLUMNS}')
-
-# shellcheck disable=SC1090
-[[ -s "${CONFIG_FILE}" ]] && source "${CONFIG_FILE}"
-
-# Use batcat if present.
-for sf in "bat" "batcat"; do
-  if type -p "${sf}" >&/dev/null; then
-    # shellcheck disable=SC2016
-    SNIPPET_FORMATTER=(
-      "${sf}"
-      "--theme=\"${BATCAT_THEME}\""
-      "--wrap=character"
-      '--terminal-width="${FZF_PREVIEW_COLUMNS}"'
-      "--color=always"
-      "--language=bash"
-    )
-    break
-  fi
-done
-
-readonly FZF_CMD=(
-  "fzf" "--no-multi" "--ansi" "--header-lines=1"
-  "--preview"
-  "cut -d'|' -f3 <<< {} | ${SNIPPET_FORMATTER[*]}"
-)
 
 # End of default variables
 
@@ -401,6 +371,68 @@ function setup() {
   echo "bind -x '${SNIP_BIND_FIND}: snip_bind_find'"
 }
 
+# create_default_config(config_file) - Create a default config file if it doesn't exist.
+function create_default_config() {
+  local cfile="${1?}"
+
+  rm -f "${cfile}"
+  cat >"${cfile}" <<-END
+    # Overridable settings
+    export SNIP_BIND_ADD='"\C-x\C-n"'
+    export SNIP_BIND_FIND='"\C-x\C-r"'
+    export BATCAT_THEME="ansi"
+END
+}
+
+# get_snippet_formatter - Return a suitable snippet formatter based on the
+# arguments and environment.
+#
+# Args:
+#   1) name of array that will receive the command.
+
+function get_snippet_formatter() {
+  local -n ret="${1?}"
+
+  # By default, use fold.
+  ret=("fold" "-sw" "\${FZF_PREVIEW_COLUMNS}")
+
+  # Use batcat if present.
+  for sf in "bat" "batcat"; do
+    if type -p "${sf}" >&/dev/null; then
+      # shellcheck disable=SC2034
+      ret=(
+        "${sf}"
+        "--theme=\"${BATCAT_THEME}\""
+        "--wrap=character"
+        "--terminal-width=\"\${FZF_PREVIEW_COLUMNS}\""
+        "--color=always"
+        "--language=bash"
+      )
+      break
+    fi
+  done
+}
+
+# get_fzf_cmd - Return a suitable fzf command.
+#
+# Args:
+#   1) name of the array that will receive the command.
+#   2) The name of the snippet formatter array.
+function get_fzf_cmd() {
+  local -n fzf_cmd_ref="${1?}"
+  local -n formatter_ref="${2?}"
+
+  # shellcheck disable=SC2034
+  fzf_cmd_ref=(
+    "fzf"
+    "--no-multi"
+    "--ansi"
+    "--header-lines=1"
+    "--preview"
+    "cut -d'|' -f3 <<< {} | ${formatter_ref[*]}"
+  )
+}
+
 function main() {
   if [[ "$#" -lt 1 ]]; then
     die "Use: ${PROGRAM} <command> [arguments].\nFor further information, use \"snip help\""
@@ -409,6 +441,13 @@ function main() {
   # Create database directory if needed.
   local db_dir="${DB_FILE%/*}"
   mkdir -p "${db_dir}"
+
+  [[ -s "${CONFIG_FILE}" ]] || create_default_config "${CONFIG_FILE}"
+  # shellcheck disable=SC1090
+  source "${CONFIG_FILE}"
+
+  get_snippet_formatter SNIPPET_FORMATTER
+  get_fzf_cmd FZF_CMD SNIPPET_FORMATTER
 
   local cmd="$1"
 
