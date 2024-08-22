@@ -432,7 +432,7 @@ function get_fzf_cmd() {
     "--ansi"
     "--header-lines=1"
     "--preview"
-    "cut -d'|' -f3 <<< {} | ${formatter_ref[*]}"
+    "cut -d'|' -f3- <<< {} | ${formatter_ref[*]}"
   )
 }
 
