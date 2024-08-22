@@ -40,7 +40,7 @@
 #     help
 #         This helpful message. :)
 #
-#     list
+#     list, ls
 #         The list command issues a formatted listing of the snippet database,
 #         including the snippet creation timestamps.
 #
@@ -452,31 +452,31 @@ function main() {
   local cmd="$1"
 
   case "${cmd}" in
-  "add")
+  add)
     shift
     add "${@}"
     ;;
-  "edit")
+  edit)
     shift
     edit
     ;;
-  "help")
+  help)
     shift
     usage
     ;;
-  "find")
+  find)
     shift
     find "${@}"
     ;;
-  "list")
+  list|ls)
     shift
     list
     ;;
-  "setup")
+  setup)
     shift
     setup
     ;;
-  "version")
+  version)
     shift
     echo "v${VERSION}"
     exit 0
