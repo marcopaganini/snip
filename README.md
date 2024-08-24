@@ -107,6 +107,11 @@ Some ideas:
     line directly from your editor.)
 *   Other general improvements.
 
+## Similar options
+
+*   [https://github.com/knqyf263/pet](https://github.com/knqyf263/pet) - pet is a snippet manager written in Go.
+    if you like snip, you may like pet too.
+
 ## Comments and ideas
 
 Feel free to open issues for any problems you find and send me your comments,
