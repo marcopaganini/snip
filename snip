@@ -110,6 +110,7 @@
 #     # window. You can override the theme using the setting below.To see all
 #     # available themes, run `cat --list-themes` (or `batcat --list-themes`
 #     # in some distributions.)
+#
 #     BAT_THEME="gruvbox-dark"
 #
 #     The lines above show the default keybindings to add and run commands.
@@ -308,7 +309,7 @@ function edit() {
 
   # Edit the database file using your favorite editor.
   # Fallback to nano in case nothing is set for SNIP_EDITOR during init.
-  local editor="${SNIP_EDITOR:-nano}" 
+  local editor="${SNIP_EDITOR:-nano}"
   "${editor}" "${DB_FILE}"
 }
 
