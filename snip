@@ -44,6 +44,15 @@
 #         The list command issues a formatted listing of the snippet database,
 #         including the snippet creation timestamps.
 #
+#     log
+#         Show a git log --oneline of the database directory.
+#
+#     repo <reponame>
+#         Initializes a git repository and start database sync.  <reponame>
+#         must be an URL pointing to a git repository. TIP: You can create
+#         private repos in github or gitlab for free and use them to sync your
+#         snippets.
+#
 #     setup
 #         This command issues the required commands to setup the bash
 #         command-line bindings to easily add snippets and re-run saved
@@ -65,12 +74,20 @@
 #             allow the user to choose a snippet to run. Once selected, snip
 #             will replace the current bash input buffer with the command to
 #             run.
+#
+#     sync
+#         Sync local changes with the git repository. This adds any changes
+#         to your database file, commits it and does a git pull -r (rebase)
+#         followed by a git push. The database name contains the host name
+#         so there should be no conflicts. If anything unusual happen, snip
+#         will abort execution with an error message.
+#
 #     version
 #         Show the program version.
 #
 # SETUP
-#     Just add `eval "$(/path/to/snip setup)"` to your `~/.bashrc`. Depending on your
-#     setup, you may need to add it to `~/.profile` as well).
+#     Just add `eval "$(/path/to/snip setup)"` to your `~/.bashrc`. Depending
+#     on your setup, you may need to add it to `~/.profile` as well).
 #
 # CONFIGURATION FILE
 #     On the first run, snip will create a configuration file with default
@@ -114,13 +131,15 @@
 set -o nounset
 
 # Program version
-readonly VERSION="0.0.2"
+readonly VERSION="0.0.3"
 
 # Default variables
 readonly ARGV0="$0"
 readonly PROGRAM="${0##*/}"
-readonly DB_FILE="${HOME}/.config/snip/db.${HOSTNAME?}"
-readonly CONFIG_FILE="${DB_FILE%/*}/config"
+readonly XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-"$HOME/.config"}"
+readonly CONFIG_DIR="${XDG_CONFIG_HOME}/snip"
+readonly DB_FILE="${CONFIG_DIR}/db.${HOSTNAME?}"
+readonly CONFIG_FILE="${CONFIG_DIR}/config"
 
 # Base column command. Behavior of the last column depends on the command
 # (list/find).
@@ -150,7 +169,7 @@ function usage() {
   local line
   local first=1
   while read -r line; do
-    if (( first )); then
+    if ((first)); then
       first=0
       continue
     fi
@@ -164,7 +183,7 @@ function usage() {
 }
 
 function die() {
-  echo -e "$1" >&2
+  (echo -e "$1" | sed 's/^[ \t]*//' | fmt -w 78) >&2
   exit 1
 }
 
@@ -436,6 +455,145 @@ function get_fzf_cmd() {
   )
 }
 
+# git_local_changes - return true if there are changes to be submitted
+# in the local repo (current directory).
+function git_local_changes() {
+  nlines=$(git status -uno --porcelain=v1 | wc -l)
+  [[ nlines -ne 0 ]]
+}
+
+# git_commit - Issue a "git commit" a standard, timestamped message.
+function git_commit() {
+  local timestamp
+  timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
+  git commit -m "Commited by 'snip sync' on ${timestamp}." || die "${PROGRAM}: 'git commit' failed."
+}
+
+# git_or_die - Issue a generic git command and die with an error message in case of failure.
+#
+# Args:
+#   git commands...
+function git_or_die() {
+  git "${@}" || die "${PROGRAM}: 'git ${*}' failed."
+}
+
+# repo_log - Show a 'git log --oneline' of the repository directory.
+function repo_log() {
+  if [[ ! -d "${CONFIG_DIR}/.git" ]]; then
+    die "${PROGRAM}: Repository not initialized. Use 'snip repo repository_url' first."
+  fi
+
+  pushd "${CONFIG_DIR}" >&/dev/null || die "Unable to chdir to \"${CONFIG_DIR}\""
+  git_or_die log --oneline
+  popd >&/dev/null || die "Unable to chdir to original directory."
+}
+
+# repo_setup - Setup a git repository on the config directory.
+#
+# Arg:
+#   - URL pointing to the git repository.
+function repo_setup() {
+  # Check Parameters
+  TEMP=$(getopt -o f --long force -n "${PROGRAM}" -- "$@")
+  # shellcheck disable=SC2181
+  if [ $? != 0 ]; then
+    echo "Error processing add command. Use ${PROGRAM} help for details..." >&2
+    exit 2
+  fi
+
+  local force=0
+
+  eval set -- "${TEMP}"
+  while :; do
+    case "$1" in
+    -f | --force)
+      force=1
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      echo "Internal Error."
+      exit 2
+      ;;
+    esac
+  done
+
+  if [[ "$#" -ne 1 ]]; then
+    die "Use: ${PROGRAM} repo [--force] repository_url"
+  fi
+  local repo_url="${1?}"
+
+  local new_repo=0
+  # Initialize repo, if needed.
+  if [[ ! -d "${CONFIG_DIR}/.git" ]]; then
+    git init -b main "${CONFIG_DIR}" || die "${PROGRAM}: 'git init ${CONFIG_DIR}' failed."
+    new_repo=1
+  fi
+
+  # Add origin if needed.
+  if ! git remote -v | grep -q "^origin"; then
+    git remote add origin "${repo_url}" || die "${PROGRAM}: Unable to add \"${repo_url}\" as git origin."
+  fi
+
+  # If we're dealing with a new repo, push the first version of the database
+  # so we can set the default upstream and branch.
+  if ((new_repo)); then
+    git_or_die add "${DB_FILE}"
+    git_commit
+
+    if ((force)); then
+      git_or_die push -u origin main --force
+    elif ! git push -u origin main; then
+      die "
+        🛑 ATTENTION:
+
+        You probably have a conflict between your local and remote
+        repositories. You may want to investigate this manually by looking at
+        the database directory ($CONFIG_DIR) using git commands. Alternatively,
+        you can use 'snip repo ... --force' to fix this situation, but remember
+        that this will OVERWRITE YOUR REMOTE REPOSITORY WITH THE LOCAL CONTENTS."
+    fi
+  fi
+}
+
+# repo_sync - Sync the local repo with the remote repository. This will add any
+# changes to the db.<host> file and commit it using the timestamp as a comment.
+# It will then attempt to pull/merge changes and push back any modifications.
+function repo_sync() {
+  if [[ ! -d "${CONFIG_DIR}/.git" ]]; then
+    die "${PROGRAM}: Repository not initialized. Use 'snip repo repository_url' first."
+  fi
+
+  pushd "${CONFIG_DIR}" >&/dev/null || die "Unable to chdir to \"${CONFIG_DIR}\""
+
+  if git_local_changes; then
+    git_or_die add "${DB_FILE}"
+    git_commit
+  fi
+
+  # Try to pull a new version of the repo. In case of problems, try a git
+  # rebase --abort So that we don't end up stuck in the middle of a rebase.
+  # This usually means someone changed the main repo directly and a conflict
+  # now exists.
+  if ! git pull -r origin main; then
+    git rebase --abort >&/dev/null
+    die "
+      🛑 ATTENTION:
+
+      The 'git pull -r origin main' command failed to fetch your remote
+      repository and merge (rebase) it with your local copy. The messages from
+      git (above) should provide more information on why. You may want to
+      investigate this manually by looking at the database directory
+      ($CONFIG_DIR) using git commands."
+  fi
+  git_or_die push origin main
+
+  popd >&/dev/null || die "Unable to chdir to original directory."
+}
+
 function main() {
   if [[ "$#" -lt 1 ]]; then
     die "Use: ${PROGRAM} <command> [arguments].\nFor further information, use \"snip help\""
@@ -471,13 +629,25 @@ function main() {
     shift
     find "${@}"
     ;;
-  list|ls)
+  list | ls)
     shift
     list
+    ;;
+  repo)
+    shift
+    repo_setup "${@}"
+    ;;
+  log)
+    shift
+    repo_log
     ;;
   setup)
     shift
     setup
+    ;;
+  sync)
+    shift
+    repo_sync
     ;;
   version)
     shift
