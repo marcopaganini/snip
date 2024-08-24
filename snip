@@ -100,6 +100,11 @@
 #     program, so it should be a valid bash file. Look for the the key syntax
 #     for "bind -x" in the bash manpage for details.
 #
+#     # Default Editor. If $VISUAL or $EDITOR environment variables are not set in the
+#     # user environment, this will default to nano. Feel free to set to vim, nvim, etc.
+#
+#     SNIP_EDITOR="nano"
+#
 # REQUIREMENTS
 #     This program requires FZF to run (https://github.com/junegunn/fzf). Please note that
 #     fzf is very popular and available natively in most Linux distributions.
@@ -283,7 +288,8 @@ function edit() {
   fi
 
   # Edit the database file using your favorite editor.
-  local editor="${VISUAL:-nano}"
+  # Fallback to nano in case nothing is set for SNIP_EDITOR during init.
+  local editor="${SNIP_EDITOR:-nano}" 
   "${editor}" "${DB_FILE}"
 }
 
@@ -370,6 +376,7 @@ function setup() {
   echo "export -f snip_bind_add"
   echo "export -f snip_bind_find"
   echo "export SNIP_PROGRAM='${PROGRAM:-snip}'"
+  echo "export SNIP_EDITOR='${SNIP_EDITOR:-nano}'"
   echo "bind -x '${SNIP_BIND_ADD}: snip_bind_add'"
   echo "bind -x '${SNIP_BIND_FIND}: snip_bind_find'"
 }
@@ -380,11 +387,15 @@ function create_default_config() {
 
   rm -f "${cfile}"
   cat >"${cfile}" <<-END
-    # Overridable settings
-    export SNIP_BIND_ADD='"\C-x\C-n"'
-    export SNIP_BIND_FIND='"\C-x\C-r"'
-    export BAT_THEME="ansi"
+# Overridable settings
+export SNIP_BIND_ADD='"\C-x\C-n"'
+export SNIP_BIND_FIND='"\C-x\C-r"'
+export BAT_THEME="ansi"
 END
+
+#If $VISUAL is set, use that for snip_editor, if not then try $EDITOR, or fall back to nano.
+local init_snip_editor="${VISUAL:-${EDITOR:-nano}}"
+echo "export SNIP_EDITOR=\"$init_snip_editor\"" >> "${cfile}"
 }
 
 # get_snippet_formatter - Return a suitable snippet formatter based on the
