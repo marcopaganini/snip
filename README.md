@@ -1,3 +1,5 @@
+![ShellCheck](https://github.com/marcopaganini/snip/actions/workflows/shellcheck.yml/badge.svg)
+
 # snip - CLI snippets manager in bash
 
 ## Description
