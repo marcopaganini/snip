@@ -548,21 +548,24 @@ function repo_setup() {
   fi
   local repo_url="${1?}"
 
+  pushd "${CONFIG_DIR}" >&/dev/null || die "Unable to chdir to \"${CONFIG_DIR}\""
+
   local new_repo=0
   # Initialize repo, if needed.
-  if [[ ! -d "${CONFIG_DIR}/.git" ]]; then
-    git init -b main "${CONFIG_DIR}" || die "${PROGRAM}: 'git init ${CONFIG_DIR}' failed."
+  if [[ ! -d ".git" ]]; then
+    git_or_die init -b main
     new_repo=1
   fi
 
   # Add origin if needed.
   if ! git remote -v | grep -q "^origin"; then
-    git remote add origin "${repo_url}" || die "${PROGRAM}: Unable to add \"${repo_url}\" as git origin."
+    git_or_die remote add origin "${repo_url}"
   fi
 
   # If we're dealing with a new repo, push the first version of the database
   # so we can set the default upstream and branch.
   if ((new_repo)); then
+    git_or_die pull -r origin main
     git_or_die add "${CONFIG_FILE}"
     git_or_die add "${DB_FILE}"
     git_commit
@@ -580,6 +583,8 @@ function repo_setup() {
         that this will OVERWRITE YOUR REMOTE REPOSITORY WITH THE LOCAL CONTENTS."
     fi
   fi
+
+  popd >&/dev/null || die "Unable to chdir to original directory."
 }
 
 # repo_sync - Sync the local repo with the remote repository. This will add any
