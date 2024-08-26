@@ -145,7 +145,8 @@ readonly SHORT_HOSTNAME="${HOSTNAME#.*}"
 readonly PROGRAM="${0##*/}"
 readonly XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-"$HOME/.config"}"
 readonly CONFIG_DIR="${XDG_CONFIG_HOME}/snip"
-readonly DB_FILE="${CONFIG_DIR}/db.${SHORT_HOSTNAME?}"
+readonly DB_PREFIX="${CONFIG_DIR}/db"
+readonly DB_FILE="${DB_PREFIX}.${SHORT_HOSTNAME?}"
 readonly CONFIG_FILE="${CONFIG_DIR}/config.${SHORT_HOSTNAME?}"
 
 # Base column command. Behavior of the last column depends on the command
@@ -365,7 +366,7 @@ function find() {
   if [[ -n "${query}" ]]; then
     fzfcmd+=("-q" "${query}")
   fi
-  cat <"${DB_FILE}" | "${COLUMN_FIND_CMD[@]}" | "${fzfcmd[@]}" | cut -d'|' -f4-
+  cat "${DB_PREFIX}".* | "${COLUMN_FIND_CMD[@]}" | "${fzfcmd[@]}" | cut -d'|' -f4-
 }
 
 # snip_bind_add - Bindings to add the current command-line to the database.
@@ -392,10 +393,10 @@ function snip_bind_find() {
   fi
 }
 
-# list - List all entries in the database.
+# list - List all entries in all databases.
 function list() {
   check_empty_db
-  cat <"${DB_FILE}" | "${COLUMN_LIST_CMD[@]}"
+  cat "${DB_PREFIX}".* | "${COLUMN_LIST_CMD[@]}"
 }
 
 # setup - Output code to be evaled from ~/.bashrc. This will install bash
