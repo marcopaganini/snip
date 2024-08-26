@@ -631,7 +631,7 @@ function migrate_from_v0_0_2() {
   # This uses a simple logic: If the first field of the file looks like a date,
   # we assume it to be using v0.0.2. Keep the regexp as simple as possible to
   # avoid compatibility issues.
-  if head -1 "${DB_FILE}" | grep -q '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'; then
+  if head -1 "${DB_FILE}" | grep -q '^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'; then
     sed -i "s/^/${SHORT_HOSTNAME}|/" "${DB_FILE}"
     print_ok "Database migrated from v0.0.2"
   fi
