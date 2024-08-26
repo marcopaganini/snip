@@ -141,11 +141,12 @@ readonly VERSION="0.0.3"
 
 # Default variables
 readonly ARGV0="$0"
+readonly SHORT_HOSTNAME="${HOSTNAME#.*}"
 readonly PROGRAM="${0##*/}"
 readonly XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-"$HOME/.config"}"
 readonly CONFIG_DIR="${XDG_CONFIG_HOME}/snip"
-readonly DB_FILE="${CONFIG_DIR}/db.${HOSTNAME?}"
-readonly CONFIG_FILE="${CONFIG_DIR}/config"
+readonly DB_FILE="${CONFIG_DIR}/db.${SHORT_HOSTNAME?}"
+readonly CONFIG_FILE="${CONFIG_DIR}/config.${SHORT_HOSTNAME?}"
 
 # Base column command. Behavior of the last column depends on the command
 # (list/find).
@@ -167,6 +168,14 @@ readonly COLUMN_FIND_CMD=(
   "--table-column=name=COMMAND")
 
 # End of default variables
+
+function print_ok() {
+  echo -e "✅ ${1}"
+}
+
+function print_error() {
+  echo -e "❌ ${1}"
+}
 
 # usage - print the program usage from top of file comments and exit with an error
 # code. The first line containing the hashbang is skipped. The rest is printed
@@ -553,6 +562,7 @@ function repo_setup() {
   # If we're dealing with a new repo, push the first version of the database
   # so we can set the default upstream and branch.
   if ((new_repo)); then
+    git_or_die add "${CONFIG_FILE}"
     git_or_die add "${DB_FILE}"
     git_commit
 
@@ -582,6 +592,7 @@ function repo_sync() {
   pushd "${CONFIG_DIR}" >&/dev/null || die "Unable to chdir to \"${CONFIG_DIR}\""
 
   if git_local_changes; then
+    git_or_die add "${CONFIG_FILE}"
     git_or_die add "${DB_FILE}"
     git_commit
   fi
@@ -606,6 +617,26 @@ function repo_sync() {
   popd >&/dev/null || die "Unable to chdir to original directory."
 }
 
+# migrate_from_v0_0_2 - Migrate the config file and database from v0.0.2.
+# - Config file: Rename bare config name to config.SHORT_HOSTNAME form.
+# - Database: Add host as the first column, if not present.
+function migrate_from_v0_0_2() {
+  # Old config file == new config file without the .SHORT_HOSTNAME suffix
+  local old_config="${CONFIG_FILE%.*}"
+  if [[ -s "${CONFIG_FILE%.*}" ]]; then
+    mv "${old_config}" "${CONFIG_FILE}"
+    print_ok "Configuration migrated from v0.0.2"
+  fi
+
+  # This uses a simple logic: If the first field of the file looks like a date,
+  # we assume it to be using v0.0.2. Keep the regexp as simple as possible to
+  # avoid compatibility issues.
+  if head -1 "${DB_FILE}" | grep -q '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'; then
+    sed -ei "s/^/${SHORT_HOSTNAME}|/" "${DB_FILE}"
+    print_ok "Database migrated from v0.0.2"
+  fi
+}
+
 function main() {
   if [[ "$#" -lt 1 ]]; then
     die "Use: ${PROGRAM} <command> [arguments].\nFor further information, use \"snip help\""
@@ -614,6 +645,9 @@ function main() {
   # Create database directory if needed.
   local db_dir="${DB_FILE%/*}"
   mkdir -p "${db_dir}"
+
+  # Migrate config and DB from v0.0.2 if needed.
+  migrate_from_v0_0_2
 
   [[ -s "${CONFIG_FILE}" ]] || create_default_config "${CONFIG_FILE}"
   # shellcheck disable=SC1090
