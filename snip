@@ -30,7 +30,9 @@
 #         text file using '|' (pipe) as a delimiter. Every line needs to have
 #         three exact fields: timestamp, description, and command. It is
 #         acceptable for the command to contain pipe characters, but not for
-#         the timestamp or description fields.
+#         the timestamp or description fields. Please note that you can only
+#         edit the current host database (even though list and find will by
+#         default show the contents of all hosts).
 #
 #     find [-q, --query STRING]
 #         The find command invokes fzf on the database and prints the
@@ -118,8 +120,8 @@
 #     program, so it should be a valid bash file. Look for the the key syntax
 #     for "bind -x" in the bash manpage for details.
 #
-#     # Default Editor. If $VISUAL or $EDITOR environment variables are not set in the
-#     # user environment, this will default to nano. Feel free to set to vim, nvim, etc.
+#     # This overrides the default editor (normallly $VISUAL or $EDITOR)
+#     # Common choiceses are nano, nvim, vim, etc.
 #
 #     SNIP_EDITOR="nano"
 #
@@ -148,6 +150,12 @@ readonly CONFIG_FILENAME="config.${HOSTNAME?}"
 readonly CONFIG_FILE="${CONFIG_DIR}/${CONFIG_FILENAME}"
 readonly DB_PREFIX="${CONFIG_DIR}/db"
 readonly DB_FILE="${DB_PREFIX}.${HOSTNAME?}"
+
+# Overridable defaults
+BAT_THEME="ansi"
+SNIP_EDITOR="${VISUAL:-${EDITOR:-nano}}"
+SNIP_BIND_ADD='"\C-x\C-n"'
+SNIP_BIND_FIND='"\C-x\C-r"'
 
 # Base column command. Behavior of the last column depends on the command
 # (list/find).
@@ -200,7 +208,7 @@ function usage() {
 }
 
 function die() {
-  (echo -e "$1" | sed 's/^[ \t]*//' | fmt -w 78) >&2
+  (echo -e "$1" | sed 's/^[ \t]*//g' | fmt -w 78) >&2
   exit 1
 }
 
@@ -317,11 +325,7 @@ function edit() {
   if [[ "$#" -ne 0 ]]; then
     die "Use: ${PROGRAM} edit"
   fi
-
-  # Edit the database file using your favorite editor.
-  # Fallback to nano in case nothing is set for SNIP_EDITOR during init.
-  local editor="${SNIP_EDITOR:-nano}"
-  "${editor}" "${DB_FILE}"
+  "${SNIP_EDITOR}" "${DB_FILE}"
 }
 
 # shellcheck disable=SC2120
@@ -407,7 +411,6 @@ function setup() {
   echo "export -f snip_bind_add"
   echo "export -f snip_bind_find"
   echo "export SNIP_PROGRAM='${PROGRAM:-snip}'"
-  echo "export SNIP_EDITOR='${SNIP_EDITOR:-nano}'"
   echo "bind -x '${SNIP_BIND_ADD}: snip_bind_add'"
   echo "bind -x '${SNIP_BIND_FIND}: snip_bind_find'"
 }
@@ -417,16 +420,26 @@ function create_default_config() {
   local cfile="${1?}"
 
   rm -f "${cfile}"
-  cat >"${cfile}" <<-END
-# Overridable settings
-export SNIP_BIND_ADD='"\C-x\C-n"'
-export SNIP_BIND_FIND='"\C-x\C-r"'
-export BAT_THEME="ansi"
-END
+  cat <<END | sed 's/^[ \t]*//g' > "${cfile}"
+    # Overridable settings for snip.
+    #
+    # This file is sourced by snip and must be a valid shell program.
+    # Commented out configuration items below are the defaults,
+    # based on your environment.
 
-#If $VISUAL is set, use that for snip_editor, if not then try $EDITOR, or fall back to nano.
-local init_snip_editor="${VISUAL:-${EDITOR:-nano}}"
-echo "export SNIP_EDITOR=\"$init_snip_editor\"" >> "${cfile}"
+    # Shell keybinding to add a snippet
+    # export SNIP_BIND_ADD='"\C-x\C-n"'
+
+    # Shell keybinding to find and run a snippet.
+    # export SNIP_BIND_FIND='"\C-x\C-r"'
+
+    # Preferred editor. If not set snip will try to use the editor
+    # defined in $VISUAL and $EDITOR.
+    # export SNIP_EDITOR='${SNIP_EDITOR}'
+
+    # Theme for bat. Use "bat --list-themes" for the list of themes.
+    # export BAT_THEME='${BAT_THEME}'
+END
 }
 
 # get_snippet_formatter - Return a suitable snippet formatter based on the
