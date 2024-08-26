@@ -153,9 +153,10 @@ readonly CONFIG_FILE="${CONFIG_DIR}/config.${SHORT_HOSTNAME?}"
 readonly COLUMN_BASE_CMD=(
   "column"
   "--table"
-  "--table-columns-limit=3"
+  "--table-columns-limit=4"
   "--separator=|"
   "--output-separator=|"
+  "--table-column=name=HOST"
   "--table-column=name=TIMESTAMP"
   "--table-column=name=DESCRIPTION")
 
@@ -364,7 +365,7 @@ function find() {
   if [[ -n "${query}" ]]; then
     fzfcmd+=("-q" "${query}")
   fi
-  cat <"${DB_FILE}" | "${COLUMN_FIND_CMD[@]}" | "${fzfcmd[@]}" | cut -d'|' -f3-
+  cat <"${DB_FILE}" | "${COLUMN_FIND_CMD[@]}" | "${fzfcmd[@]}" | cut -d'|' -f4-
 }
 
 # snip_bind_add - Bindings to add the current command-line to the database.
@@ -472,7 +473,7 @@ function get_fzf_cmd() {
     "--ansi"
     "--header-lines=1"
     "--preview"
-    "cut -d'|' -f3- <<< {} | ${formatter_ref[*]}"
+    "cut -d'|' -f4- <<< {} | ${formatter_ref[*]}"
   )
 }
 
