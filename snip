@@ -219,12 +219,18 @@ function check_empty_db() {
     die "${PROGRAM}: Database file is empty. Try add something with \"snip add\""
 }
 
-# save(desc, cmd) - Save a single entry to the database file.
+# save - Save a single entry to the database file.
+#
+# Args:
+#   1) hostname
+#   2) description
+#   3) command
 function save() {
-  local desc="${1?}"
-  local cmd="${2?}"
+  local hostname="${1?}"
+  local desc="${2?}"
+  local cmd="${3?}"
 
-  echo "$(date '+%Y-%m-%d %H:%M:%S')|${desc}|${cmd}" >>"${DB_FILE}"
+  echo "${hostname}|$(date '+%Y-%m-%d %H:%M:%S')|${desc}|${cmd}" >>"${DB_FILE}"
 }
 
 # add - Add a command to the database.
@@ -313,7 +319,7 @@ function add() {
   done
 
   # Save and delete infile if needed.
-  save "${desc}" "${cmd}"
+  save "${HOSTNAME}" "${desc}" "${cmd}"
   if ((delete_file)) && [[ -n "${infile}" ]]; then
     rm -f "${infile}"
   fi
