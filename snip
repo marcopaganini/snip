@@ -304,6 +304,8 @@ function add() {
     die "${PROGRAM} ERROR: command cannot contain newlines\nCommand entered:\n${cmd}"
   fi
 
+  echo "Adding Snippet: ${cmd}"
+
   # Read description rejecting invalid chars and blank lines.
   while :; do
     read -re -p "Description (one line): " desc
@@ -382,12 +384,16 @@ function find() {
 # snip_bind_add - Bindings to add the current command-line to the database.
 function snip_bind_add() {
   if [[ -n "${READLINE_LINE}" ]]; then
-    tmp="$(mktemp)"
-    old_readline_line="${READLINE_LINE}"
-    echo "${READLINE_LINE}" >"${tmp}"
-    # One space before the program prevents it from being added to the history.
-    READLINE_LINE=" ${SNIP_PROGRAM:-snip} add -f ${tmp} --delete ### Command: ${old_readline_line}"
+    # Empirically discovered that bind apparently turns off icrnl, icanon, and
+    # echo on the TTY. We need to turn it back on so the user can enter the
+    # description. We also need to turn if back OFF at the end, or strangeness
+    # will result (like not being able to edit the line upon return to the
+    # prompt, etc).
+    stty icrnl icanon echo
+    ${SNIP_PROGRAM:-snip} add "${READLINE_LINE}"
+    READLINE_LINE=""
     READLINE_POINT="${#READLINE_LINE}"
+    stty -icrnl -icanon -echo
   fi
 }
 
@@ -399,7 +405,6 @@ function snip_bind_find() {
   if [[ -n "${cmd}" ]]; then
     READLINE_LINE="${cmd}"
     READLINE_POINT="${#READLINE_LINE}"
-    READLINE_MARK="${READLINE_POINT}"
   fi
 }
 
