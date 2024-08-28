@@ -151,6 +151,11 @@ readonly CONFIG_FILE="${CONFIG_DIR}/${CONFIG_FILENAME}"
 readonly DB_PREFIX="${CONFIG_DIR}/db"
 readonly DB_FILE="${DB_PREFIX}.${HOSTNAME?}"
 
+# Emojis
+readonly E_RIGHT="➡️"
+readonly E_OK="✅"
+readonly E_BAD="❌"
+
 # Overridable defaults
 BAT_THEME="ansi"
 SNIP_EDITOR="${VISUAL:-${EDITOR:-nano}}"
@@ -179,14 +184,6 @@ readonly COLUMN_FIND_CMD=(
 
 # End of default variables
 
-function print_ok() {
-  echo -e "✅ ${1}"
-}
-
-function print_error() {
-  echo -e "❌ ${1}"
-}
-
 # usage - print the program usage from top of file comments and exit with an error
 # code. The first line containing the hashbang is skipped. The rest is printed
 # as the usage. Printing will stop at the end of the first block of comments.
@@ -208,7 +205,7 @@ function usage() {
 }
 
 function die() {
-  (echo -e "$1" | sed 's/^[ \t]*//g' | fmt -w 78) >&2
+  (echo -e "${E_BAD} ${PROGRAM}: $1" | sed 's/^[ \t]*//g' | fmt -w 78) >&2
   exit 1
 }
 
@@ -216,7 +213,7 @@ function die() {
 # error message.
 function check_empty_db() {
   [[ -s "${DB_FILE}" ]] ||
-    die "${PROGRAM}: Database file is empty. Try add something with \"snip add\""
+    die "database file is empty. Try add something with \"snip add\""
 }
 
 # save - Save a single entry to the database file.
@@ -271,7 +268,7 @@ function add() {
       infile="$2"
       cmd_from_file="$(cat "${infile}")"
       if [[ -z "${cmd_from_file}" ]]; then
-        echo >&2 "${PROGRAM} Called add with --file, but the file \"${infile}\" appears to be empty."
+        echo >&2 "${E_BAD} ${PROGRAM} Called add with --file, but the file \"${infile}\" appears to be empty."
         return
       fi
       shift 2
@@ -294,21 +291,21 @@ function add() {
     echo "Command: ${cmd}"
   else
     if [[ "$#" -ne 1 ]]; then
-      die "${PROGRAM}: \"add\" command needs an argument with the command to add."
+      die "\"add\" command needs an argument with the command to add."
     fi
     cmd="$1"
   fi
 
   # Make sure the command does not contain newlines
   if [[ "${cmd}" =~ $'\n' ]]; then
-    die "${PROGRAM} ERROR: command cannot contain newlines\nCommand entered:\n${cmd}"
+    die "command cannot contain newlines\nCommand entered:\n${cmd}"
   fi
 
-  echo "Adding Snippet: ${cmd}"
+  echo "${E_RIGHT} Adding Snippet: ${cmd}"
 
   # Read description rejecting invalid chars and blank lines.
   while :; do
-    read -re -p "Description (one line): " desc
+    read -re -p "${E_RIGHT} Description (one line): " desc
     if [[ "${desc}" =~ [$'\r'$'\n'\|] ]]; then
       echo "ERROR: Description cannot contain pipe (\"|\") characters or newlines. Please try again."
       continue
@@ -331,7 +328,7 @@ function add() {
 function edit() {
   # Check parameters.
   if [[ "$#" -ne 0 ]]; then
-    die "Use: ${PROGRAM} edit"
+    die "invalid syntax. Use: ${PROGRAM} edit"
   fi
   "${SNIP_EDITOR}" "${DB_FILE}"
 }
@@ -371,7 +368,7 @@ function find() {
   done
 
   if [[ "$#" -ne 0 ]]; then
-    die "Use: ${PROGRAM} find"
+    die "invalid syntax. Use ${PROGRAM} find"
   fi
 
   local fzfcmd=("${FZF_CMD[@]}")
@@ -513,7 +510,7 @@ function git_local_changes() {
 function git_commit() {
   local timestamp
   timestamp="$(date '+%Y-%m-%d %H:%M:%S')"
-  git commit -m "Commited by 'snip sync' on ${timestamp}." || die "${PROGRAM}: 'git commit' failed."
+  git commit -m "Commited by 'snip sync' on ${timestamp}." || die "'git commit' failed."
 }
 
 # git_or_die - Issue a generic git command and die with an error message in case of failure.
@@ -521,18 +518,18 @@ function git_commit() {
 # Args:
 #   git commands...
 function git_or_die() {
-  git "${@}" || die "${PROGRAM}: 'git ${*}' failed."
+  git "${@}" || die "'git ${*}' failed."
 }
 
 # repo_log - Show a 'git log --oneline' of the repository directory.
 function repo_log() {
   if [[ ! -d "${CONFIG_DIR}/.git" ]]; then
-    die "${PROGRAM}: Repository not initialized. Use 'snip repo repository_url' first."
+    die "repository not initialized. Use 'snip repo repository_url' first."
   fi
 
-  pushd "${CONFIG_DIR}" >&/dev/null || die "Unable to chdir to \"${CONFIG_DIR}\""
+  pushd "${CONFIG_DIR}" >&/dev/null || die "unable to chdir to \"${CONFIG_DIR}\""
   git_or_die log --oneline
-  popd >&/dev/null || die "Unable to chdir to original directory."
+  popd >&/dev/null || die "unable to chdir to original directory."
 }
 
 # repo_setup - Setup a git repository on the config directory.
@@ -569,11 +566,11 @@ function repo_setup() {
   done
 
   if [[ "$#" -ne 1 ]]; then
-    die "Use: ${PROGRAM} repo [--force] repository_url"
+    die "invalid syntax. Use ${PROGRAM} repo [--force] repository_url"
   fi
   local repo_url="${1?}"
 
-  pushd "${CONFIG_DIR}" >&/dev/null || die "Unable to chdir to \"${CONFIG_DIR}\""
+  pushd "${CONFIG_DIR}" >&/dev/null || die "unable to chdir to \"${CONFIG_DIR}\""
 
   local new_repo=0
   # Initialize repo, if needed.
@@ -598,7 +595,7 @@ function repo_setup() {
     if ((force)); then
       git_or_die push -u origin main --force
     elif ! git push -u origin main; then
-      die "
+      echo >&2 "
         🛑 ATTENTION:
 
         You probably have a conflict between your local and remote
@@ -606,10 +603,11 @@ function repo_setup() {
         the database directory ($CONFIG_DIR) using git commands. Alternatively,
         you can use 'snip repo ... --force' to fix this situation, but remember
         that this will OVERWRITE YOUR REMOTE REPOSITORY WITH THE LOCAL CONTENTS."
+      exit 1
     fi
   fi
 
-  popd >&/dev/null || die "Unable to chdir to original directory."
+  popd >&/dev/null || die "unable to chdir to original directory."
 }
 
 # repo_sync - Sync the local repo with the remote repository. This will add any
@@ -617,10 +615,10 @@ function repo_setup() {
 # It will then attempt to pull/merge changes and push back any modifications.
 function repo_sync() {
   if [[ ! -d "${CONFIG_DIR}/.git" ]]; then
-    die "${PROGRAM}: Repository not initialized. Use 'snip repo repository_url' first."
+    die "repository not initialized. Use 'snip repo repository_url' first."
   fi
 
-  pushd "${CONFIG_DIR}" >&/dev/null || die "Unable to chdir to \"${CONFIG_DIR}\""
+  pushd "${CONFIG_DIR}" >&/dev/null || die "unable to chdir to \"${CONFIG_DIR}\""
 
   if git_local_changes; then
     git_or_die add "${CONFIG_FILE}"
@@ -634,7 +632,7 @@ function repo_sync() {
   # now exists.
   if ! git pull -r origin main; then
     git rebase --abort >&/dev/null
-    die "
+    echo >&2 "
       🛑 ATTENTION:
 
       The 'git pull -r origin main' command failed to fetch your remote
@@ -642,10 +640,11 @@ function repo_sync() {
       git (above) should provide more information on why. You may want to
       investigate this manually by looking at the database directory
       ($CONFIG_DIR) using git commands."
+    exit 1
   fi
   git_or_die push origin main
 
-  popd >&/dev/null || die "Unable to chdir to original directory."
+  popd >&/dev/null || die "unable to chdir to original directory."
 }
 
 # migrate_from_v0_0_2 - Migrate the config file and database from v0.0.2.
@@ -656,7 +655,7 @@ function migrate_from_v0_0_2() {
   local old_config="${CONFIG_DIR}/${CONFIG_FILENAME%%.*}"
   if [[ -s "${old_config}" ]]; then
     mv "${old_config}" "${CONFIG_FILE}"
-    print_ok "Configuration migrated from v0.0.2"
+    echo "${E_OK} Configuration migrated from v0.0.2"
   fi
 
   # This uses a simple logic: If the first field of the file looks like a date,
@@ -664,13 +663,14 @@ function migrate_from_v0_0_2() {
   # avoid compatibility issues.
   if head -1 "${DB_FILE}" | grep -q '^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'; then
     sed -i "s/^/${HOSTNAME}|/" "${DB_FILE}"
-    print_ok "Database migrated from v0.0.2"
+    echo "${E_OK} Database migrated from v0.0.2"
   fi
 }
 
 function main() {
   if [[ "$#" -lt 1 ]]; then
-    die "Use: ${PROGRAM} <command> [arguments].\nFor further information, use \"snip help\""
+    echo >&2 "Use: ${PROGRAM} <command> [arguments].\nFor further information, use \"snip help\""
+    exit 1
   fi
 
   # Create database directory if needed.
@@ -732,7 +732,7 @@ function main() {
     exit 0
     ;;
   *)
-    die "${PROGRAM}: Unknown command: \"${cmd}\"\nRun \"snip help\" to see the list of commands"
+    die "unknown command: \"${cmd}\"\nRun \"snip help\" to see the list of commands"
     ;;
   esac
 }
