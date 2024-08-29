@@ -669,7 +669,7 @@ function migrate_from_v0_0_2() {
 
 function main() {
   if [[ "$#" -lt 1 ]]; then
-    echo >&2 "Use: ${PROGRAM} <command> [arguments].\nFor further information, use \"snip help\""
+    echo -e >&2 "Use: ${PROGRAM} <command> [arguments].\nFor further information, use \"snip help\""
     exit 1
   fi
 
