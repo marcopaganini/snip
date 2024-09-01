@@ -35,9 +35,9 @@
 #         default show the contents of all hosts).
 #
 #     find [-q, --query STRING]
-#         The find command invokes fzf on the database and prints the
+#         The find command invokes FZF on the database and prints the
 #         command-line for the snippet chosen by the user. The `--query` flag
-#         sets the initial query for fzf, if present.
+#         sets the initial query for FZF, if present.
 #
 #     help
 #         This helpful message. :)
@@ -72,7 +72,7 @@
 #             confirm the action and enter a description.
 #
 #         Ctrl-X Ctrl-R
-#             Find and run a saved snippet. This will open an fzf window and
+#             Find and run a saved snippet. This will open an FZF window and
 #             allow the user to choose a snippet to run. Once selected, snip
 #             will replace the current bash input buffer with the command to
 #             run.
@@ -92,11 +92,12 @@
 #     on your setup, you may need to add it to `~/.profile` as well).
 #
 # CONFIGURATION FILE
-#     On the first run, snip will create a configuration file with default
-#     values.
+#     On the first run, snip will create an example configuration file with
+#     default values commented out.
 #
-#     Currently, it is possible to override a few items in the config file.
-#     To do that, edit `~/.config/snip/config` and/edit add the following:
+#     Currently, it is possible to override a few items in the config file.  To
+#     do that, edit `~/.config/snip/config.${HOSTNAME}` and/edit add the
+#     following:
 #
 #     # bash keybindings
 #     #
@@ -108,7 +109,7 @@
 #     SNIP_BIND_FIND='"\C-x\C-r"'
 #
 #     # bat (aka batcat) theme. If you have batcat installed, snip will
-#     # automatically use it to syntax highlight the snippets in the fzf preview
+#     # automatically use it to syntax highlight the snippets in the FZF preview
 #     # window. You can override the theme using the setting below.To see all
 #     # available themes, run `cat --list-themes` (or `batcat --list-themes`
 #     # in some distributions.)
@@ -127,14 +128,13 @@
 #
 # REQUIREMENTS
 #     This program requires FZF to run (https://github.com/junegunn/fzf). Please note that
-#     fzf is very popular and available natively in most Linux distributions.
+#     FZF is very popular and available natively in most Linux distributions.
 #
 #     If installed, snip will use `batcat` (aka bat) to provide syntax highlighting
 #     in the preview window.
 #
 # AUTHOR
-#     (C) Aug/2024 by Marco Paganini <paganini [at] paganini [dot] net>
-#
+#     (C) Sep/2024 by Marco Paganini <paganini [at] paganini [dot] net>
 
 set -o nounset
 

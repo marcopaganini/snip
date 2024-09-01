@@ -8,7 +8,7 @@
 useful and important bash code snippets directly from the bash prompt. It is
 especially useful to save long one-liners, or rarely used commands which we tend
 to forget. `snip` is written in pure bash, but uses
-[fzf](https://github.com/junegunn/fzf) to allow the user to perform searches on
+[FZF](https://github.com/junegunn/fzf) to allow the user to perform searches on
 the snippet database.
 
 ![Screen Cast](https://raw.githubusercontent.com/marcopaganini/snip/master/assets/snip.gif)
@@ -17,9 +17,9 @@ the snippet database.
 
 Shell scripting is a powerful tool in the right hands. The piping capabilities
 coupled with the many readily available utilities make it possible to perform
-complex and useful operations on all sorts of data. Most medium to advanced bash
-users will have a number of these stored somewhere, from text files to
-[Google Keep](http://keep.google.com). Those solutions involve cutting and
+complex and useful operations on all sorts of data. Most medium to advanced
+bash users will have a number "code snippets" stored somewhere, from text files
+to [Google Keep](http://keep.google.com). Those solutions involve cutting and
 pasting, and in the case of web-based solutions, the use of a browser.
 
 Consider for example the following sequence of commands, taken from a real use
@@ -38,10 +38,9 @@ It took a few tries to get the command "just right", which naturally filled the
 history with all sorts of invalid or "almost valid" commands.
 
 With `snip`, it's just be a matter of typing `Ctrl-x` `Ctrl-n` ("N" for "new")
-directly at the command-line prompt to save the snippet when the correct command
-shows. To find and recall a saved snippet just type `Ctrl-x` `Ctrl-R` ("R" for
-"Run"). This will fill-in the command-line prompt with the command, ready to
-execute.
+directly at the command-line prompt to save the snippet when the correct
+command shows. To find and recall a saved snippet just type `Ctrl-x` `Ctrl-R`
+("R" for "Run", or "Recall").
 
 ## Features
 
@@ -50,6 +49,7 @@ execute.
 *   Uses a simple text file for the database.
 *   CLI commands to edit the database manually.
 *   CLI commands to list the contents of the database in a formatted way.
+*   Supports syncing of multiple hosts via a git repo.
 *   Automatically saves a time stamp with the command.
 *   Written in pure shell. To install just copy one file to `/usr/local/bin` or
     any other location in your `PATH`.
@@ -57,8 +57,8 @@ execute.
 
 ## Installation
 
-Installation is easy. Just cut & paste the two lines below. To "upgrade" snip,
-just repeat the same commands:
+Installation is easy. Just cut & paste the two lines below. To upgrade snip,
+to the latest stable version, just repeat the same commands:
 
 ```
 sudo curl -s https://raw.githubusercontent.com/marcopaganini/snip/master/snip >/usr/local/bin/snip
@@ -87,7 +87,7 @@ configuration:
     replace the current line with a `snip add` command to insert your snippet
     into the database. Just hit ENTER afterwards and provide a description.
 
-*   `Ctrl-X` `Ctrl-R`: This starts fzf so the user can choose a command to be
+*   `Ctrl-X` `Ctrl-R`: This starts FZF so the user can choose a command to be
     recalled. The command is inserted in the current command-line input. If no
     modifications are required, just hit ENTER to execute the command.
 
@@ -101,9 +101,7 @@ typing `snip help`.
 `snip` is in its early stages and I have a number of ideas for future features.
 Some ideas:
 
-*   A bit more color in the fzf selector for those who prefer it.
-*   git integration - commit and pull your snippets automatically from your
-    repo.
+*   A bit more color in the FZF selector for those who prefer it.
 *   zsh integration.
 *   A `snip delete` command (right now, use `snip edit` and delete the snippet
     line directly from your editor.)
@@ -111,8 +109,8 @@ Some ideas:
 
 ## Similar options
 
-*   [https://github.com/knqyf263/pet](https://github.com/knqyf263/pet) - pet is a snippet manager written in Go.
-    if you like snip, you may like pet too.
+*   [https://github.com/knqyf263/pet](https://github.com/knqyf263/pet) - pet is
+    a snippet manager written in Go.  if you like snip, you may like pet too.
 
 ## Comments and ideas
 
@@ -153,12 +151,14 @@ OPTIONS
         text file using '|' (pipe) as a delimiter. Every line needs to have
         three exact fields: timestamp, description, and command. It is
         acceptable for the command to contain pipe characters, but not for
-        the timestamp or description fields.
+        the timestamp or description fields. Please note that you can only
+        edit the current host database (even though list and find will by
+        default show the contents of all hosts).
 
     find [-q, --query STRING]
-        The find command invokes fzf on the database and prints the
+        The find command invokes FZF on the database and prints the
         command-line for the snippet chosen by the user. The `--query` flag
-        sets the initial query for fzf, if present.
+        sets the initial query for FZF, if present.
 
     help
         This helpful message. :)
@@ -166,6 +166,15 @@ OPTIONS
     list, ls
         The list command issues a formatted listing of the snippet database,
         including the snippet creation timestamps.
+
+    log
+        Show a git log --oneline of the database directory.
+
+    repo <reponame>
+        Initializes a git repository and start database sync.  <reponame>
+        must be an URL pointing to a git repository. TIP: You can create
+        private repos in github or gitlab for free and use them to sync your
+        snippets.
 
     setup
         This command issues the required commands to setup the bash
@@ -184,23 +193,32 @@ OPTIONS
             confirm the action and enter a description.
 
         Ctrl-X Ctrl-R
-            Find and run a saved snippet. This will open an fzf window and
+            Find and run a saved snippet. This will open an FZF window and
             allow the user to choose a snippet to run. Once selected, snip
             will replace the current bash input buffer with the command to
             run.
+
+    sync
+        Sync local changes with the git repository. This adds any changes
+        to your database file, commits it and does a git pull -r (rebase)
+        followed by a git push. The database name contains the host name
+        so there should be no conflicts. If anything unusual happen, snip
+        will abort execution with an error message.
+
     version
         Show the program version.
 
 SETUP
-    Just add `eval "$(/path/to/snip setup)"` to your `~/.bashrc`. Depending on your
-    setup, you may need to add it to `~/.profile` as well).
+    Just add `eval "$(/path/to/snip setup)"` to your `~/.bashrc`. Depending
+    on your setup, you may need to add it to `~/.profile` as well).
 
 CONFIGURATION FILE
-    On the first run, snip will create a configuration file with default
-    values.
+    On the first run, snip will create an example configuration file with
+    default values commented out.
 
-    Currently, it is possible to override a few items in the config file.
-    To do that, edit `~/.config/snip/config` and/edit add the following:
+    Currently, it is possible to override a few items in the config file.  To
+    do that, edit `~/.config/snip/config.${HOSTNAME}` and/edit add the
+    following:
 
     # bash keybindings
     #
@@ -212,10 +230,11 @@ CONFIGURATION FILE
     SNIP_BIND_FIND='"\C-x\C-r"'
 
     # bat (aka batcat) theme. If you have batcat installed, snip will
-    # automatically use it to syntax highlight the snippets in the fzf preview
+    # automatically use it to syntax highlight the snippets in the FZF preview
     # window. You can override the theme using the setting below.To see all
     # available themes, run `cat --list-themes` (or `batcat --list-themes`
     # in some distributions.)
+
     BAT_THEME="gruvbox-dark"
 
     The lines above show the default keybindings to add and run commands.
@@ -223,14 +242,18 @@ CONFIGURATION FILE
     program, so it should be a valid bash file. Look for the the key syntax
     for "bind -x" in the bash manpage for details.
 
+    # This overrides the default editor (normallly $VISUAL or $EDITOR)
+    # Common choiceses are nano, nvim, vim, etc.
+
+    SNIP_EDITOR="nano"
+
 REQUIREMENTS
     This program requires FZF to run (https://github.com/junegunn/fzf). Please note that
-    fzf is very popular and available natively in most Linux distributions.
+    FZF is very popular and available natively in most Linux distributions.
 
     If installed, snip will use `batcat` (aka bat) to provide syntax highlighting
     in the preview window.
 
 AUTHOR
-    (C) Aug/2024 by Marco Paganini <paganini [at] paganini [dot] net>
-
+    (C) Sep/2024 by Marco Paganini <paganini [at] paganini [dot] net>
 ```
