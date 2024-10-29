@@ -1,3 +1,8 @@
+# Version 0.0.4
+
+*   Small bugfix: Check if database exists before attempting to migrate it
+    from older versions.
+
 # Version 0.0.3
 
 *   Add git repository sync support: To use, create a free repository on your
