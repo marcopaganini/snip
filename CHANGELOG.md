@@ -1,3 +1,7 @@
+# Version 0.0.5
+
+*   Small bugfix: v0.0.4 didn't update the version number inside the script.
+
 # Version 0.0.4
 
 *   Small bugfix: Check if database exists before attempting to migrate it
