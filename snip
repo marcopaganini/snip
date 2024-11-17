@@ -34,19 +34,22 @@
 #         edit the current host database (even though list and find will by
 #         default show the contents of all hosts).
 #
-#     find [-q, --query STRING, [-l, --long]
+#     find [-a, --all] [l, --long] [-q, --query STRING]
 #         The find command invokes FZF on the database and prints the
 #         command-line for the snippet chosen by the user. The `--query` flag
 #         sets the initial query for FZF, if present. The `--long` flag shows
-#         all details, including hostname and creation timestamp.
+#         all details, including hostname and creation timestamp. The -all
+#         flag tells find to display snippets from all hosts, not only the
+#         current one.
 #
 #     help
 #         This helpful message. :)
 #
-#     list, ls [-l, --long]
+#     list, ls [-a, --all] [-l, --long]
 #         The list command displays a formatted listing of the every command and
 #         its description in the database. If used with the "--long" flag, all
-#         details are listed (host and creation timestamp).
+#         details are listed (host and creation timestamp). The "--all" flag
+#         lists commands from all hosts, instead of the current one only.
 #
 #     log
 #         Show a git log --oneline of the database directory.
@@ -136,12 +139,12 @@
 #     in the preview window.
 #
 # AUTHOR
-#     (C) Sep/2024 by Marco Paganini <paganini [at] paganini [dot] net>
+#     (C) 2024 by Marco Paganini <paganini [at] paganini [dot] net>
 
 set -o nounset
 
 # Program version
-readonly VERSION="0.0.5"
+readonly VERSION="0.1.0"
 
 # Default variables
 readonly ARGV0="$0"
@@ -164,11 +167,9 @@ SNIP_EDITOR="${VISUAL:-${EDITOR:-nano}}"
 SNIP_BIND_ADD='"\C-x\C-n"'
 SNIP_BIND_FIND='"\C-x\C-r"'
 
-# Base column command. Behavior of the last column depends on the command
-# (list/find) and mode (normal/long).
-readonly COLUMN_SELECT_LONG_CMD=(
-  "cat"
-)
+# Long mode commands.
+
+readonly COLUMN_FILTER_LONG_CMD=("cat")
 
 readonly COLUMN_BASE_LONG_CMD=(
   "column"
@@ -190,11 +191,9 @@ readonly COLUMN_LIST_LONG_CMD=(
 
 readonly COMMAND_COLUMN_LONG=4
 
-# Short mode.
+# Short mode commands
 
-readonly COLUMN_SELECT_CMD=(
-  "cut" "-d" "|" "-f" "3-"
-)
+readonly COLUMN_FILTER_CMD=("cut" "-d" "|" "-f" "3-")
 
 readonly COLUMN_BASE_CMD=(
   "column"
@@ -213,6 +212,10 @@ readonly COLUMN_FIND_CMD=(
   "--table-column=name=COMMAND")
 
 readonly COMMAND_COLUMN=2
+
+# Host filtering commands
+readonly HOST_FILTER_ALL_CMD=("cat")
+readonly HOST_FILTER_CURRENT_CMD=("grep"  "^${HOSTNAME}|")
 
 # End of default variables
 
@@ -366,13 +369,12 @@ function edit() {
 }
 
 # shellcheck disable=SC2120
-# find - Call fzf on the database and returns the command chosen by the user
-# Also accepts "[-q|--query] string" to start search at a given string.
+# find - Call fzf on the database and returns the command chosen by the user.
 function find() {
   check_empty_db
 
   # Check Parameters
-  TEMP=$(getopt -o l,q: --long long,query: -n "${PROGRAM}" -- "$@")
+  TEMP=$(getopt -o a,l,q: --long all,long,query: -n "${PROGRAM}" -- "$@")
   # shellcheck disable=SC2181
   if [ $? != 0 ]; then
     echo "Error processing find command. Use ${PROGRAM} help for details..." >&2
@@ -382,15 +384,20 @@ function find() {
   local query=""
 
   # Default == short mode
-  column_select_cmd=("${COLUMN_SELECT_CMD[@]}")
+  host_filter_cmd=("${HOST_FILTER_CURRENT_CMD[@]}")
+  column_filter_cmd=("${COLUMN_FILTER_CMD[@]}")
   column_find_cmd=("${COLUMN_FIND_CMD[@]}")
   command_column="${COMMAND_COLUMN}"
 
   eval set -- "${TEMP}"
   while :; do
     case "$1" in
+    -a | --all)
+      host_filter_cmd=("${HOST_FILTER_ALL_CMD[@]}")
+      shift
+      ;;
     -l | --long)
-      column_select_cmd=("${COLUMN_SELECT_LONG_CMD[@]}")
+      column_filter_cmd=("${COLUMN_FILTER_LONG_CMD[@]}")
       column_find_cmd=("${COLUMN_FIND_LONG_CMD[@]}")
       command_column="${COMMAND_COLUMN_LONG}"
       shift
@@ -411,14 +418,20 @@ function find() {
   done
 
   if [[ "$#" -ne 0 ]]; then
-    die "invalid syntax. Use ${PROGRAM} find [--long] [--query=querystr]"
+    die "invalid syntax. Use ${PROGRAM} find [--all] [--long] [--query=querystr]"
   fi
 
   local fzfcmd=("${FZF_CMD[@]}")
   if [[ -n "${query}" ]]; then
     fzfcmd+=("-q" "${query}")
   fi
-  cat "${DB_PREFIX}".* | "${column_select_cmd[@]}" | "${column_find_cmd[@]}" | "${fzfcmd[@]}" | cut -d'|' -f"${command_column}-"
+
+  cat "${DB_PREFIX}".* |
+    "${host_filter_cmd[@]}" |
+    "${column_filter_cmd[@]}" |
+    "${column_find_cmd[@]}" |
+    "${fzfcmd[@]}" |
+    cut -d'|' -f"${command_column}-"
 }
 
 # snip_bind_add - Bindings to add the current command-line to the database.
@@ -453,7 +466,7 @@ function list() {
   check_empty_db
 
   # Check Parameters
-  TEMP=$(getopt -o l --long long -n "${PROGRAM}" -- "$@")
+  TEMP=$(getopt -o a,l --long all,long -n "${PROGRAM}" -- "$@")
   # shellcheck disable=SC2181
   if [ $? != 0 ]; then
     echo "Error processing list command. Use ${PROGRAM} help for details..." >&2
@@ -461,14 +474,19 @@ function list() {
   fi
 
   # Default == short mode
-  column_select_cmd=("${COLUMN_SELECT_CMD[@]}")
+  host_filter_cmd=("${HOST_FILTER_CURRENT_CMD[@]}")
+  column_filter_cmd=("${COLUMN_FILTER_CMD[@]}")
   column_list_cmd=("${COLUMN_LIST_CMD[@]}")
 
   eval set -- "${TEMP}"
   while :; do
     case "$1" in
+    -a | --all)
+      host_filter_cmd=("${HOST_FILTER_ALL_CMD[@]}")
+      shift
+      ;;
     -l | --long)
-      column_select_cmd=("${COLUMN_SELECT_LONG_CMD[@]}")
+      column_filter_cmd=("${COLUMN_FILTER_LONG_CMD[@]}")
       column_list_cmd=("${COLUMN_LIST_LONG_CMD[@]}")
       shift
       ;;
@@ -484,10 +502,13 @@ function list() {
   done
 
   if [[ "$#" -ne 0 ]]; then
-    die "invalid syntax. Use ${PROGRAM} list [--long]"
+    die "invalid syntax. Use ${PROGRAM} list [--all] [--long]"
   fi
 
-  cat "${DB_PREFIX}".* |"${column_select_cmd[@]}" | "${column_list_cmd[@]}"
+  cat "${DB_PREFIX}".* |
+    "${host_filter_cmd[@]}" |
+    "${column_filter_cmd[@]}" |
+    "${column_list_cmd[@]}"
 }
 
 # setup - Output code to be evaled from ~/.bashrc. This will install bash
