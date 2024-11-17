@@ -34,17 +34,19 @@
 #         edit the current host database (even though list and find will by
 #         default show the contents of all hosts).
 #
-#     find [-q, --query STRING]
+#     find [-q, --query STRING, [-l, --long]
 #         The find command invokes FZF on the database and prints the
 #         command-line for the snippet chosen by the user. The `--query` flag
-#         sets the initial query for FZF, if present.
+#         sets the initial query for FZF, if present. The `--long` flag shows
+#         all details, including hostname and creation timestamp.
 #
 #     help
 #         This helpful message. :)
 #
-#     list, ls
-#         The list command issues a formatted listing of the snippet database,
-#         including the snippet creation timestamps.
+#     list, ls [-l, --long]
+#         The list command displays a formatted listing of the every command and
+#         its description in the database. If used with the "--long" flag, all
+#         details are listed (host and creation timestamp).
 #
 #     log
 #         Show a git log --oneline of the database directory.
@@ -163,8 +165,12 @@ SNIP_BIND_ADD='"\C-x\C-n"'
 SNIP_BIND_FIND='"\C-x\C-r"'
 
 # Base column command. Behavior of the last column depends on the command
-# (list/find).
-readonly COLUMN_BASE_CMD=(
+# (list/find) and mode (normal/long).
+readonly COLUMN_SELECT_LONG_CMD=(
+  "cat"
+)
+
+readonly COLUMN_BASE_LONG_CMD=(
   "column"
   "--table"
   "--table-columns-limit=4"
@@ -174,6 +180,30 @@ readonly COLUMN_BASE_CMD=(
   "--table-column=name=TIMESTAMP"
   "--table-column=name=DESCRIPTION")
 
+readonly COLUMN_FIND_LONG_CMD=(
+  "${COLUMN_BASE_LONG_CMD[@]}"
+  "--table-column=name=COMMAND")
+
+readonly COLUMN_LIST_LONG_CMD=(
+  "${COLUMN_BASE_LONG_CMD[@]}"
+  "--table-column=name=COMMAND,wrap")
+
+readonly COMMAND_COLUMN_LONG=4
+
+# Short mode.
+
+readonly COLUMN_SELECT_CMD=(
+  "cut" "-d" "|" "-f" "3-"
+)
+
+readonly COLUMN_BASE_CMD=(
+  "column"
+  "--table"
+  "--table-columns-limit=2"
+  "--separator=|"
+  "--output-separator=|"
+  "--table-column=name=DESCRIPTION")
+
 readonly COLUMN_LIST_CMD=(
   "${COLUMN_BASE_CMD[@]}"
   "--table-column=name=COMMAND,wrap")
@@ -181,6 +211,8 @@ readonly COLUMN_LIST_CMD=(
 readonly COLUMN_FIND_CMD=(
   "${COLUMN_BASE_CMD[@]}"
   "--table-column=name=COMMAND")
+
+readonly COMMAND_COLUMN=2
 
 # End of default variables
 
@@ -340,7 +372,7 @@ function find() {
   check_empty_db
 
   # Check Parameters
-  TEMP=$(getopt -o q: --long query: -n "${PROGRAM}" -- "$@")
+  TEMP=$(getopt -o l,q: --long long,query: -n "${PROGRAM}" -- "$@")
   # shellcheck disable=SC2181
   if [ $? != 0 ]; then
     echo "Error processing find command. Use ${PROGRAM} help for details..." >&2
@@ -349,9 +381,20 @@ function find() {
 
   local query=""
 
+  # Default == short mode
+  column_select_cmd=("${COLUMN_SELECT_CMD[@]}")
+  column_find_cmd=("${COLUMN_FIND_CMD[@]}")
+  command_column="${COMMAND_COLUMN}"
+
   eval set -- "${TEMP}"
   while :; do
     case "$1" in
+    -l | --long)
+      column_select_cmd=("${COLUMN_SELECT_LONG_CMD[@]}")
+      column_find_cmd=("${COLUMN_FIND_LONG_CMD[@]}")
+      command_column="${COMMAND_COLUMN_LONG}"
+      shift
+      ;;
     -q | --query)
       query="$2"
       shift 2
@@ -368,14 +411,14 @@ function find() {
   done
 
   if [[ "$#" -ne 0 ]]; then
-    die "invalid syntax. Use ${PROGRAM} find"
+    die "invalid syntax. Use ${PROGRAM} find [--long] [--query=querystr]"
   fi
 
   local fzfcmd=("${FZF_CMD[@]}")
   if [[ -n "${query}" ]]; then
     fzfcmd+=("-q" "${query}")
   fi
-  cat "${DB_PREFIX}".* | "${COLUMN_FIND_CMD[@]}" | "${fzfcmd[@]}" | cut -d'|' -f4-
+  cat "${DB_PREFIX}".* | "${column_select_cmd[@]}" | "${column_find_cmd[@]}" | "${fzfcmd[@]}" | cut -d'|' -f"${command_column}-"
 }
 
 # snip_bind_add - Bindings to add the current command-line to the database.
@@ -408,7 +451,43 @@ function snip_bind_find() {
 # list - List all entries in all databases.
 function list() {
   check_empty_db
-  cat "${DB_PREFIX}".* | "${COLUMN_LIST_CMD[@]}"
+
+  # Check Parameters
+  TEMP=$(getopt -o l --long long -n "${PROGRAM}" -- "$@")
+  # shellcheck disable=SC2181
+  if [ $? != 0 ]; then
+    echo "Error processing list command. Use ${PROGRAM} help for details..." >&2
+    exit 2
+  fi
+
+  # Default == short mode
+  column_select_cmd=("${COLUMN_SELECT_CMD[@]}")
+  column_list_cmd=("${COLUMN_LIST_CMD[@]}")
+
+  eval set -- "${TEMP}"
+  while :; do
+    case "$1" in
+    -l | --long)
+      column_select_cmd=("${COLUMN_SELECT_LONG_CMD[@]}")
+      column_list_cmd=("${COLUMN_LIST_LONG_CMD[@]}")
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      echo "Internal Error."
+      exit 2
+      ;;
+    esac
+  done
+
+  if [[ "$#" -ne 0 ]]; then
+    die "invalid syntax. Use ${PROGRAM} list [--long]"
+  fi
+
+  cat "${DB_PREFIX}".* |"${column_select_cmd[@]}" | "${column_list_cmd[@]}"
 }
 
 # setup - Output code to be evaled from ~/.bashrc. This will install bash
@@ -709,7 +788,7 @@ function main() {
     ;;
   list | ls)
     shift
-    list
+    list "${@}"
     ;;
   repo)
     shift
