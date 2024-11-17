@@ -155,17 +155,22 @@ OPTIONS
         edit the current host database (even though list and find will by
         default show the contents of all hosts).
 
-    find [-q, --query STRING]
+    find [-a, --all] [l, --long] [-q, --query STRING]
         The find command invokes FZF on the database and prints the
         command-line for the snippet chosen by the user. The `--query` flag
-        sets the initial query for FZF, if present.
+        sets the initial query for FZF, if present. The `--long` flag shows
+        all details, including hostname and creation timestamp. The -all
+        flag tells find to display snippets from all hosts, not only the
+        current one.
 
     help
         This helpful message. :)
 
-    list, ls
-        The list command issues a formatted listing of the snippet database,
-        including the snippet creation timestamps.
+    list, ls [-a, --all] [-l, --long]
+        The list command displays a formatted listing of the every command and
+        its description in the database. If used with the "--long" flag, all
+        details are listed (host and creation timestamp). The "--all" flag
+        lists commands from all hosts, instead of the current one only.
 
     log
         Show a git log --oneline of the database directory.
@@ -255,5 +260,5 @@ REQUIREMENTS
     in the preview window.
 
 AUTHOR
-    (C) Sep/2024 by Marco Paganini <paganini [at] paganini [dot] net>
+    (C) 2024 by Marco Paganini <paganini [at] paganini [dot] net>
 ```
